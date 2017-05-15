@@ -10,7 +10,7 @@ const blake = require('blakejs');
 const uuid = require("uuid")
 
 const defaultConfig = pkg.defaultConfig;
-const database = pkg.database;
+const database = defaultConfig.database;
 const availableAct = ['createdb', 'createtbl', 'filldb', 'loaddb'];
 let action;
 
@@ -27,6 +27,7 @@ if (!(availableAct.includes(action))) {
     program.outputHelp();
     process.exit();
 }
+chalk.enabled = true;
 
 switch (action) {
     case 'createdb':
@@ -83,12 +84,12 @@ async function fillDatabase() {
     }
 
     function newGIFItem(img, url, src) {
-        return db.none('INSERT INTO gif VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, LOCALTIMESTAMP, LOCALTIMESTAMP)', [
+        return db.none('INSERT INTO gif VALUES ($1, $2, $3::varchar(32)[], $4::integer[], $5::uuid[], $6, $7, $8, $9, LOCALTIMESTAMP, LOCALTIMESTAMP)', [
             img.id,
             url,
             img.tags,
             img.characteristics,
-            [],
+            [img.id],
             img.size,
             'gif',
             img.hash,
@@ -100,13 +101,14 @@ async function fillDatabase() {
     let tags = null;
     let newTags = new Map();
     let nextTagExp;
+    let prArray = [];
 
     try {
         tags = await getAllTags();
         nextTagExp = tags.size;
     }
     catch (err) {
-        error('Get tags failed\n');
+        error('Get tags failed');
         return;
     }
 
@@ -114,8 +116,7 @@ async function fillDatabase() {
         try {
             let imgData = await (fetchImgData(img));
             img.hash = Buffer.from(blake.blake2b(imgData));
-            img.id = Buffer.alloc(32);
-            uuid.v4(null, img.id, 0);
+            img.id = uuid.v4();
             // img.tags
             img.characteristics = img.tags.map((t) => {
                 if (tags.has(t)) {
@@ -131,15 +132,16 @@ async function fillDatabase() {
             });
 
             let url, src = await uploadGIF(imgData);
-            newGIFItem(img, url, src)
-                .then(() => imgCount++)
-                .catch(() => error('Insert new GIF failed, remove file from OSS'));
+            prArray.push(new Promise((resolve) => newGIFItem(img, url, src)
+                .then(() => { imgCount++; resolve(); })
+                .catch((err) => { error(`Insert new GIF failed, remove file from OSS: ${err}`); resolve(); })));
         } catch (err) {
             //error when fetching image data
             error(err.message);
         }
     }
 
+    await Promise.all(prArray);
     success(`${imgCount} images filled into database`);
 
     // insert new tags
@@ -150,7 +152,7 @@ async function fillDatabase() {
     db.none(qr)
         .then(() => success(`Update ${newTagArray.length} new tags`))
         // should backup new tags when failed
-        .catch(() => error('Update tags failed'));
+        .catch((err) => error(`Update tags failed: ${err}`));
 }
 
 function fetchImgData(img) {
