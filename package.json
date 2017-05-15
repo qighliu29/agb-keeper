@@ -1,0 +1,43 @@
+{
+  "name": "gif-server-init",
+  "version": "1.0.0",
+  "description": "",
+  "defaultConfig": {
+    "user": "postgres",
+    "database": "postgres",
+    "password": "mysecretpassword",
+    "host": "172.27.20.17",
+    "port": 5432
+  },
+  "database": "gifs",
+  "main": "index.js",
+  "imgAPI": "http://www.gifmiao.com/api/getSearchData",
+  "imgRepo": "http://cdnimg.gifmiao.com/",
+  "imgChunkSize": 500,
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "create-database": "babel-node index.js createdb",
+    "create-tables": "babel-node index.js createtbl",
+    "fill-database": "babel-node index.js filldb",
+    "load-database": "babel-node index.js loaddb"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "blakejs": "^1.0.1",
+    "cheerio": "^0.22.0",
+    "commander": "^2.9.0",
+    "pg": "^6.1.5",
+    "pleasant-progress": "^1.1.0",
+    "ramda": "^0.23.0",
+    "request": "^2.81.0",
+    "request-promise": "^4.2.0",
+    "stream-buffers": "^3.0.1"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.24.1",
+    "babel-eslint": "^7.2.3",
+    "babel-preset-es2017": "^6.24.1",
+    "eslint": "^3.19.0"
+  }
+}
