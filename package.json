@@ -16,7 +16,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "create-database": "babel-node index.js createdb",
-    "create-tables": "babel-node index.js createtbl",
+    "fill-match": "cross-var \"babel-node index.js --password $AGB_PWD fm\"",
     "fill-database": "cross-var \"babel-node index.js --password $AGB_PWD filldb\"",
     "load-database": "babel-node index.js loaddb"
   },

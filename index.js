@@ -12,7 +12,7 @@ const nn = require('./nearest');
 
 const defaultConfig = pkg.defaultConfig;
 const database = defaultConfig.database;
-const availableAct = ['createdb', 'createtbl', 'filldb', 'loaddb'];
+const availableAct = ['createdb', 'fm', 'filldb', 'loaddb'];
 let action;
 
 program
@@ -34,8 +34,8 @@ switch (action) {
     case 'createdb':
         createDataBase();
         break;
-    case 'createtbl':
-        createTables();
+    case 'fm':
+        calcMatch();
         break;
     case 'filldb':
         fillDatabase();
@@ -47,8 +47,49 @@ switch (action) {
         break;
 }
 
-async function createDataBase() {
-    let imgTag = ['暴走漫画', '妈的智障', '金馆长'];
+function createDataBase() {
+}
+
+function loadFromDatabase() {
+}
+
+async function calcMatch() {
+    const db = pgp({
+        user: program.user,
+        database: database,
+        password: program.password,
+        host: program.host,
+        port: program.port,
+    });
+
+    let rows = await db.any('SELECT id, characteristics FROM gif');
+    let featarr = rows.map((r) => r.characteristics);
+    let uprows = rows.map((r) => ({ id: r.id, match: [r.id] }));
+    uprows.forEach((v, i, ur) => {
+        let neighbours = nn.nearestNeighbourN(featarr[i], [...featarr.slice(0, i), ...featarr.slice(i + 1)], 10);
+        neighbours.forEach((n) => {
+            if (n >= i) {
+                v.match.push(ur[n + 1].id);
+            }
+            else {
+                v.match.push(ur[n].id);
+            }
+        });
+    });
+
+    var cs = new pgp.helpers.ColumnSet([
+        new pgp.helpers.Column({ name: 'id', cast: '::uuid', cnd: true }),
+        new pgp.helpers.Column({ name: 'match', cast: '::uuid[]' })],
+        { table: 'gif' });
+    let qr = pgp.helpers.update(uprows, cs) + ' WHERE v.id = t.id';
+    db.none(qr)
+        .then(() => success('Update match successfuly'))
+        // should backup new tags when failed
+        .catch((err) => error(`Update match failed: ${err}`));
+}
+
+async function fillDatabase() {
+    let imgTag = ['暴走漫画', '妈的智障', '宝宝心里哭', '生无可恋'];
     let legalImgs = [];
     await Promise.all(imgTag.map((tag) => {
         return new Promise(async (resolve) => {
@@ -56,42 +97,6 @@ async function createDataBase() {
             resolve();
         });
     }));
-    success(`${legalImgs.length} images available`);
-
-    let tags = new Map();
-    let imgFeatureArray = legalImgs.map((img) => img.tags.map((tag) => {
-        if (tags.has(tag)) {
-            return tags.get(tag);
-        }
-        else {
-            tags.set(tag, tags.size);
-            return tags.size - 1;
-        }
-    }));
-
-    imgFeatureArray.forEach((v, i, arr) => {
-        let nbr = nn.nearestNeighbourN(v, [...arr.slice(0, i), ...arr.slice(i + 1)], 7);
-        error(legalImgs[i].tags);
-        nbr.forEach((n) => {
-            if (n >= i) {
-                success(`--${legalImgs[n + 1].tags}`);
-            }
-            else {
-                success(`--${legalImgs[n].tags}`);
-            }
-        });
-    });
-}
-
-function createTables() {
-}
-
-function loadFromDatabase() {
-}
-
-async function fillDatabase() {
-    let imgTag = '暴走漫画';
-    let legalImgs = R.pipe(R.filter(filterImg), R.uniqBy((img) => img.id))(await getImgUrlList(imgTag));
     success(`${legalImgs.length} images available`);
 
     const db = pgp({
@@ -102,19 +107,19 @@ async function fillDatabase() {
         port: program.port,
     });
 
+    // upload GIF to OSS
+    function uploadGIF(imgData) {
+        return new Promise((resolve, reject) => {
+            resolve('url', 'source');
+        });
+    }
+
     async function getAllTags() {
         let tags = new Map();
         let rows = await db.any('SELECT * FROM tag');
         rows.forEach((r) => tags.set(r.content, r.exp));
 
         return tags;
-    }
-
-    // upload GIF to OSS
-    function uploadGIF(imgData) {
-        return new Promise((resolve, reject) => {
-            resolve('url', 'source');
-        });
     }
 
     function newGIFItem(img, url, src) {
@@ -138,7 +143,7 @@ async function fillDatabase() {
     let prArray = [];
 
     try {
-        tags = await getAllTags();
+        tags = await getAllTags(db);
         nextTagExp = tags.size;
     }
     catch (err) {
