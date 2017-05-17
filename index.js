@@ -8,6 +8,7 @@ const R = require('ramda');
 const streamBuffers = require('stream-buffers');
 const blake = require('blakejs');
 const uuid = require("uuid")
+const nn = require('./nearest');
 
 const defaultConfig = pkg.defaultConfig;
 const database = defaultConfig.database;
@@ -46,7 +47,40 @@ switch (action) {
         break;
 }
 
-function createDataBase() {
+async function createDataBase() {
+    let imgTag = ['暴走漫画', '妈的智障', '金馆长'];
+    let legalImgs = [];
+    await Promise.all(imgTag.map((tag) => {
+        return new Promise(async (resolve) => {
+            legalImgs = legalImgs.concat(R.pipe(R.filter(filterImg), R.uniqBy((img) => img.id))(await getImgUrlList(tag)));
+            resolve();
+        });
+    }));
+    success(`${legalImgs.length} images available`);
+
+    let tags = new Map();
+    let imgFeatureArray = legalImgs.map((img) => img.tags.map((tag) => {
+        if (tags.has(tag)) {
+            return tags.get(tag);
+        }
+        else {
+            tags.set(tag, tags.size);
+            return tags.size - 1;
+        }
+    }));
+
+    imgFeatureArray.forEach((v, i, arr) => {
+        let nbr = nn.nearestNeighbourN(v, [...arr.slice(0, i), ...arr.slice(i + 1)], 7);
+        error(legalImgs[i].tags);
+        nbr.forEach((n) => {
+            if (n >= i) {
+                success(`--${legalImgs[n + 1].tags}`);
+            }
+            else {
+                success(`--${legalImgs[n].tags}`);
+            }
+        });
+    });
 }
 
 function createTables() {
@@ -156,7 +190,7 @@ async function fillDatabase() {
 }
 
 function fetchImgData(img) {
-    return new Promise(async(resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
         let stream = new streamBuffers.WritableStreamBuffer({
             initialSize: (100 * 1024),
             incrementAmount: (10 * 1024)
