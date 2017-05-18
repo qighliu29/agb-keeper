@@ -92,11 +92,9 @@ async function fillDatabase() {
     let imgTag = ['暴走漫画', '妈的智障', '宝宝心里哭', '生无可恋'];
     let legalImgs = [];
     await Promise.all(imgTag.map((tag) => {
-        return new Promise(async (resolve) => {
-            legalImgs = legalImgs.concat(R.pipe(R.filter(filterImg), R.uniqBy((img) => img.id))(await getImgUrlList(tag)));
-            resolve();
-        });
-    }));
+        return new Promise(async (resolve) => resolve(R.pipe(R.filter(filterImg), R.uniqBy((img) => img.id))(await getImgUrlList(tag))));
+    }))
+        .then((urlListArray) => urlListArray.forEach((urlList) => legalImgs = legalImgs.concat(urlList)));
     success(`${legalImgs.length} images available`);
 
     const db = pgp({
