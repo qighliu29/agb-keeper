@@ -9,10 +9,12 @@ const streamBuffers = require('stream-buffers');
 const blake = require('blakejs');
 const uuid = require("uuid")
 const nn = require('./nearest');
+const OSS = require('ali-oss').Wrapper;
 
 const defaultConfig = pkg.defaultConfig;
 const database = defaultConfig.database;
 const availableAct = ['createdb', 'fm', 'filldb', 'loaddb'];
+const ossConfig = pkg.oss;
 let action;
 
 program
@@ -105,10 +107,19 @@ async function fillDatabase() {
         port: program.port,
     });
 
+    const client = new OSS({
+        region: 'oss-cn-shenzhen',
+        accessKeyId: ossConfig.accessKeyId,
+        accessKeySecret: ossConfig.accessKeySecret,
+        bucket: 'agb-image'
+    });
+
     // upload GIF to OSS
-    function uploadGIF(imgData) {
+    function uploadGIF(fileName, imgData) {
         return new Promise((resolve, reject) => {
-            resolve('url', 'source');
+            client.put(fileName, imgData)
+                .then(() => resolve(`http://agb-image.oss-cn-shenzhen.aliyuncs.com/${fileName}.gif`, 'agb-keeper'))
+                .catch(() => reject({ message: `upload ${fileName} to OSS failed` }));
         });
     }
 
@@ -168,10 +179,13 @@ async function fillDatabase() {
                 }
             });
 
-            let url, src = await uploadGIF(imgData);
+            let url, src = await uploadGIF(img.id, imgData);
             prArray.push(new Promise((resolve) => newGIFItem(img, url, src)
                 .then(() => { imgCount++; resolve(); })
-                .catch((err) => { error(`Insert new GIF failed, remove file from OSS: ${err}`); resolve(); })));
+                .catch((err) => { 
+                    error(`insert new GIF failed, remove file from OSS: ${err}`); 
+                    client.delete(img.id).catch(() => error(`delete ${img.id} from OSS failed`));
+                    resolve(); })));
         } catch (err) {
             //error when fetching image data
             error(err.message);
