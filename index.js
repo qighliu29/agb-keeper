@@ -118,7 +118,7 @@ async function fillDatabase() {
     function uploadGIF(fileName, imgData) {
         return new Promise((resolve, reject) => {
             client.put(fileName, imgData)
-                .then(() => resolve(`http://agb-image.oss-cn-shenzhen.aliyuncs.com/${fileName}.gif`, 'agb-keeper'))
+                .then(() => resolve(`http://agb-image.oss-cn-shenzhen.aliyuncs.com/${fileName}`, 'agb-keeper'))
                 .catch(() => reject({ message: `upload ${fileName} to OSS failed` }));
         });
     }
@@ -132,7 +132,7 @@ async function fillDatabase() {
     }
 
     function newGIFItem(img, url, src) {
-        return db.none('INSERT INTO gif VALUES ($1, $2, $3::varchar(32)[], $4::integer[], $5::uuid[], $6, $7, $8, $9, LOCALTIMESTAMP, LOCALTIMESTAMP)', [
+        return db.none('INSERT INTO gif VALUES ($1, $2::varchar(128), $3::varchar(32)[], $4::integer[], $5::uuid[], $6, $7, $8, $9::varchar(32), LOCALTIMESTAMP, LOCALTIMESTAMP)', [
             img.id,
             url,
             img.tags,
@@ -179,13 +179,14 @@ async function fillDatabase() {
                 }
             });
 
-            let url, src = await uploadGIF(img.id, imgData);
+            let url, src = await uploadGIF(img.id + '.gif', imgData);
             prArray.push(new Promise((resolve) => newGIFItem(img, url, src)
                 .then(() => { imgCount++; resolve(); })
-                .catch((err) => { 
-                    error(`insert new GIF failed, remove file from OSS: ${err}`); 
-                    client.delete(img.id).catch(() => error(`delete ${img.id} from OSS failed`));
-                    resolve(); })));
+                .catch((err) => {
+                    error(`insert new GIF failed, remove file from OSS: ${err}`);
+                    client.delete(img.id + '.gif').catch(() => error(`delete ${img.id} from OSS failed`));
+                    resolve();
+                })));
         } catch (err) {
             //error when fetching image data
             error(err.message);
