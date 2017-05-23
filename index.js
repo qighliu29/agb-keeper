@@ -118,7 +118,7 @@ async function fillDatabase() {
     function uploadGIF(fileName, imgData) {
         return new Promise((resolve, reject) => {
             client.put(fileName, imgData)
-                .then(() => resolve(`http://agb-image.oss-cn-shenzhen.aliyuncs.com/${fileName}`, 'agb-keeper'))
+                .then(() => resolve([`http://agb-image.oss-cn-shenzhen.aliyuncs.com/${fileName}`, 'agb-keeper']))
                 .catch(() => reject({ message: `upload ${fileName} to OSS failed` }));
         });
     }
@@ -179,7 +179,7 @@ async function fillDatabase() {
                 }
             });
 
-            let url, src = await uploadGIF(img.id + '.gif', imgData);
+            const [url, src] = await uploadGIF(img.id + '.gif', imgData);
             prArray.push(new Promise((resolve) => newGIFItem(img, url, src)
                 .then(() => { imgCount++; resolve(); })
                 .catch((err) => {
